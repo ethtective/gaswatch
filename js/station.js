@@ -1,10 +1,8 @@
 const Web3 = require("web3");
-// const DataFrame = require("dataframe-js").DataFrame;
 const DataFrame = require("data-forge").DataFrame;
 const prettyMs = require("pretty-ms");
 
 const web3 = new Web3("wss://mainnet.infura.io/_ws");
-// const web3 = new Web3(Web3.givenProvider || "http://localhost:8645");
 
 let station;
 let mined_block_num;
@@ -93,14 +91,17 @@ const processBlockData = async (block_df, block_obj) => {
     if (block_obj.transactions.length > 0) {
         block_min_gas_price = block_df.deflate(row => row.gp_gwei).min();
     }
-
-    let time_mined = block_df.deflate(row => row.time_mined).min();
-    let clean_block = new CleanBlock(
-        block_obj,
-        time_mined,
-        block_min_gas_price,
-    );
-    let clean_df = new DataFrame([clean_block.toDataFrame()]);
+    try {
+        let time_mined = block_df.deflate(row => row.time_mined).min();
+        let clean_block = new CleanBlock(
+            block_obj,
+            time_mined,
+            block_min_gas_price,
+        );
+        let clean_df = new DataFrame([clean_block.toDataFrame()]);
+    } catch {
+        return null;
+    }
     // console.log(clean_df.toString());
     return clean_df;
 };
@@ -199,14 +200,18 @@ const percentHash = gwei => {
 const predictDuration = gwei => {
     let totalblocks = bdata.count() < maxBlocks ? bdata.count() : maxBlocks;
     let closestgwei = -1;
+    let closestless = -1;
+    let closestmore = -1;
     let maxgwei = 1000;
     predictiondata.getSeries("min_gas_price").forEach(x => {
-        if (Math.abs(gwei - x) < maxgwei) {
-            maxgwei = Math.abs(gwei - x);
+        let abs = Math.abs(gwei - x);
+        if (abs < maxgwei) {
+            maxgwei = abs;
             closestgwei = x[0];
         }
     });
     // console.log(closestgwei);
+    // TODO we should get closest below and above
     let pct_hashpower = predictiondata
         .where(r => r.min_gas_price == closestgwei)
         .deflate(r => r.hasp_pct)
